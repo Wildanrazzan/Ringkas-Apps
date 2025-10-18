@@ -12,8 +12,6 @@ class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable, HasApiTokens;
-
-    const UPDATED_AT = null;
     public $timestamps = true;
     /**
      * The attributes that are mass assignable.
