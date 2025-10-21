@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use App\Models\Kategori;
+use App\Http\Resources\MassageResource;
 
 
 class KategoriController extends Controller
@@ -13,6 +15,8 @@ class KategoriController extends Controller
     public function index()
     {
         //
+        $kategori = Kategori::all();
+        return new MassageResource($kategori, '200', 'Data kategori berhasil diambil');
     }
 
     /**
