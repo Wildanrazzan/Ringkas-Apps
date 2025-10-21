@@ -4,7 +4,8 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Transaksi;
-use App\Http\Resources\MassageResource;
+use App\Models\Dompet;
+use App\Http\Resources\MessageResource;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 
@@ -22,7 +23,7 @@ class TransaksiController extends Controller
             ->select('transaksi.*', 'dompet.name as dompet_name', 'kategori.name as kategori_name')
             ->where('dompet.user_id', $user->id)
             ->get();
-        return new MassageResource($transaksi, '200', 'Data transaksi berhasil diambil');
+        return new MessageResource($transaksi, '200', 'Data transaksi berhasil diambil');
     }
 
     /**
@@ -49,6 +50,17 @@ class TransaksiController extends Controller
         if ($validator->fails()) {
             return response()->json([$validator->errors()], 422);
         }
+
+        $dompet = Dompet::find($request->dompet_id);
+
+        if(!$dompet){
+            return response()->json(['Dompet tidak ditemukan'], 404);
+        }
+
+        if($dompet->user_id !== Auth::id()){
+            return response()->json(['Tidak boleh memakai dompet yang bukan milik anda!'], 403);
+        }
+
         $transaksi = Transaksi::create([
             'dompet_id' => $request->dompet_id,
             'category_id' => $request->category_id,
@@ -56,7 +68,7 @@ class TransaksiController extends Controller
             'trx_date' => $request->trx_date,
             'note' => $request->note,
         ]);
-        return new MassageResource($transaksi, '201', 'Transaksi berhasil dibuat');
+        return new MessageResource($transaksi, '201', 'Transaksi berhasil dibuat');
     }
 
     /**
@@ -82,24 +94,44 @@ class TransaksiController extends Controller
     {
         //
         $validator = Validator::make($request->all(), [
-            'dompet_id' => 'required|exists:dompet,id',
-            'category_id' => 'required|exists:kategori,id',
-            'trx_date' => 'required|date',
-            'amount' => 'required|numeric',
+            'dompet_id' => 'sometimes|exists:dompet,id',
+            'category_id' => 'sometimes|exists:kategori,id',
+            'trx_date' => 'sometimes|date',
+            'amount' => 'sometimes|numeric',
             'note' => 'nullable|string|max:500',
         ]);
         if ($validator->fails()) {
             return response()->json([$validator->errors()], 422);
         }
-        Transaksi::whereId($id)->update([
-            'dompet_id' => $request->dompet_id,
-            'category_id' => $request->category_id,
-            'trx_date' => $request->trx_date,
-            'amount' => $request->amount,
-            'note' => $request->note,
-        ]);
+        
         $transaksi = Transaksi::find($id);
-        return new MassageResource($transaksi, '200', 'Transaksi berhasil diupdate');
+
+        if(!$transaksi){
+            return response()->json(['Transaksi tidak ditemukan'], 404);
+        }
+
+        $dompetLama = Dompet::find($transaksi->dompet_id);
+        
+        if(!$dompetLama || $dompetLama->user_id !== Auth::id()){
+            return response()->json(['Tidak memiliki izin untuk mengupdate transaksi ini!'],403);
+        }
+
+        if($request->has('dompet_id')){
+            $dompetBaru = Dompet::find($request->dompet_id);
+            if(!$dompetBaru || $dompetBaru->user_id !== Auth::id()){
+                return response()->json(['Dompet tersebut bukan milik anda!'], 403);
+            }
+        }
+
+        $transaksi->update($request->only([
+            'dompet_id',
+            'category_id',
+            'trx_date',
+            'amount',
+            'note',
+        ]));
+
+        return new MessageResource($transaksi, '200', 'Transaksi berhasil diupdate');
     }
 
     /**
@@ -107,9 +139,19 @@ class TransaksiController extends Controller
      */
     public function destroy(string $id)
     {
-        //
-        $transaksi = Transaksi::whereId($id)->first();
+        $transaksi = Transaksi::find($id);
+
+        if(!$transaksi){
+            return response()->json(['Transaksi tidak ditemukan'], 404);
+        }
+
+        $dompet = Dompet::find($transaksi->dompet_id);
+        
+        if(!$dompet || $dompet->user_id !== Auth::id()){
+            return response()->json(['Tidak memiliki izin untuk menghapus transaksi ini!'],403);
+        }
+
         $transaksi->delete();
-        return new MassageResource($transaksi, '204', 'Transaksi berhasil dihapus');
+        return new MessageResource($transaksi, '200', 'Transaksi berhasil dihapus');
     }
 }

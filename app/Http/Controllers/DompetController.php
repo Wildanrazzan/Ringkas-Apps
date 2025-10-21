@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Dompet;
-use App\Http\Resources\MassageResource;
+use App\Http\Resources\MessageResource;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 
@@ -21,7 +21,7 @@ class DompetController extends Controller
             ->select('dompet.*', 'users.name as user_name')
             ->where('dompet.user_id', $user->id)
             ->get();
-        return new MassageResource($dompet, '200', 'Data dompet berhasil diambil');
+        return new MessageResource($dompet, '200', 'Data dompet berhasil diambil');
     }
 
     /**
@@ -56,7 +56,7 @@ class DompetController extends Controller
             'initial_balance' => $request->initial_balance,
             'is_active' => $request->is_active,
         ]);
-        return new MassageResource($dompet, '201', 'Dompet berhasil dibuat');
+        return new MessageResource($dompet, '201', 'Dompet berhasil dibuat');
     }
 
     /**
@@ -91,15 +91,26 @@ class DompetController extends Controller
         if ($validator->fails()) {
             return response()->json([$validator->errors()], 422);
         }
-        Dompet::whereId($id)->update([
-            'name' => $request->name,
-            'type' => $request->type,
-            'currency' => $request->currency,
-            'initial_balance' => $request->initial_balance,
-            'is_active' => $request->is_active,
-        ]);
+        
         $dompet = Dompet::find($id);
-        return new MassageResource($dompet, '204', 'Dompet berhasil diupdate');
+
+        if(!$dompet){
+            return response()->json(['Dompet tidak ditemukan'], 404);
+        }
+
+        if($dompet->user_id !== Auth::id()){
+            return response()->json(['Tidak boleh update dompet yang bukan milik anda!'], 403);
+        }
+
+        $dompet->update($request->only([
+            'name',
+            'type',
+            'currency',
+            'initial_balance',
+            'is_active'
+        ]));
+
+        return new MessageResource($dompet, '200', 'Dompet berhasil diupdate');
     }
 
     /**
@@ -108,8 +119,17 @@ class DompetController extends Controller
     public function destroy(string $id)
     {
         //
-        $dompet = Dompet::whereId($id)->first();
+        $dompet = Dompet::find($id);
+
+        if(!$dompet){
+            return response()->json(['Dompet tidak ditemukan'], 404);
+        }
+
+        if($dompet->user_id !== Auth::id()){
+            return response()->json(['Tidak boleh update dompet yang bukan milik anda!'], 403);
+        }
+
         $dompet->delete();
-        return new MassageResource($dompet, '204', 'Dompet berhasil dihapus');
+        return new MessageResource($dompet, '200', 'Dompet berhasil dihapus');
     }
 }

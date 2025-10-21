@@ -22,6 +22,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/dompet/{id}', [DompetController::class, 'destroy']);
 
     Route::get('/kategori', [KategoriController::class, 'index']);
+    Route::post('/kategori', [KategoriController::class, 'store']);
+    Route::put('/kategori/{id}', [KategoriController::class, 'update']);
+    Route::delete('/kategori/{id}', [KategoriController::class, 'destroy']);
 
     Route::get('/transaksi', [TransaksiController::class, 'index']);
     Route::post('/transaksi', [TransaksiController::class, 'store']);
