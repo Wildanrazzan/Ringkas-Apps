@@ -97,11 +97,11 @@ class KategoriController extends Controller
             return response()->json(['Kategori tidak ditemukan']);
         }
 
-        if($kategorit->user_id !== Auth::id()){
+        if($kategori->user_id !== Auth::id()){
             return response()->json(['Tidak boleh update kategori yang bukan milik anda!'], 403);
         }
 
-        $kkategori->update($request->only([
+        $kategori->update($request->only([
             'name',
             'kind',
             'icon',

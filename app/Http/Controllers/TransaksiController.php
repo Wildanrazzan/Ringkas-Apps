@@ -8,6 +8,7 @@ use App\Models\Dompet;
 use App\Http\Resources\MessageResource;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
 
 class TransaksiController extends Controller
 {
@@ -61,13 +62,27 @@ class TransaksiController extends Controller
             return response()->json(['Tidak boleh memakai dompet yang bukan milik anda!'], 403);
         }
 
+        $kategori = DB::table('kategori')->where('id', $request->category_id)->first();
+        if (!$kategori) {
+            return response()->json(['Kategori tidak ditemukan'], 404);
+        }
+
+        $amount = abs($request->amount);
+        if($kategori->kind === 'expense'){
+            $amount = -$amount;
+        }
+
         $transaksi = Transaksi::create([
             'dompet_id' => $request->dompet_id,
             'category_id' => $request->category_id,
-            'amount' => $request->amount,
+            'amount' => $amount,
             'trx_date' => $request->trx_date,
             'note' => $request->note,
         ]);
+
+        DB::table('dompet')
+            ->where('id', $dompet->id)
+            ->increment('initial_balance', $amount);
         return new MessageResource($transaksi, '201', 'Transaksi berhasil dibuat');
     }
 
@@ -123,13 +138,38 @@ class TransaksiController extends Controller
             }
         }
 
-        $transaksi->update($request->only([
-            'dompet_id',
-            'category_id',
-            'trx_date',
-            'amount',
-            'note',
-        ]));
+        DB::transaction(function () use ($request, $transaksi, $dompetLama) {
+            DB::table('dompet')
+            ->where('id', $dompetLama->id)
+            ->update([
+                'initial_balance' => DB::raw("initial_balance - ($transaksi->amount)")
+            ]);
+
+        $categoryId = $request->category_id ?? $transaksi->category_id;
+        $kategoriBaru = DB::table('kategori')->where('id', $categoryId)->first();
+        if (!$kategoriBaru) {
+            throw new \Exception('Kategori tidak ditemukan');
+        }
+
+        $amountBaru = $request->has('amount') ? abs($request->amount) : abs($transaksi->amount);
+        if ($kategoriBaru->kind === 'expense') {
+            $amountBaru = -$amountBaru;
+        }
+
+        $transaksi->update([
+            'dompet_id'   => $request->dompet_id ?? $transaksi->dompet_id,
+            'category_id' => $categoryId,
+            'trx_date'    => $request->trx_date ?? $transaksi->trx_date,
+            'amount'      => $amountBaru,
+            'note'        => $request->note ?? $transaksi->note,
+        ]);
+
+        DB::table('dompet')
+            ->where('id', $transaksi->dompet_id)
+            ->update([
+                'initial_balance' => DB::raw("initial_balance + ($amountBaru)")
+            ]);
+        });
 
         return new MessageResource($transaksi, '200', 'Transaksi berhasil diupdate');
     }
@@ -151,7 +191,15 @@ class TransaksiController extends Controller
             return response()->json(['Tidak memiliki izin untuk menghapus transaksi ini!'],403);
         }
 
-        $transaksi->delete();
+        DB::transaction(function () use ($transaksi, $dompet) {
+            DB::table('dompet')
+            ->where('id', $dompet->id)
+            ->update([
+                'initial_balance' => DB::raw("initial_balance - ($transaksi->amount)")
+            ]);
+            $transaksi->delete();
+        });
+
         return new MessageResource($transaksi, '200', 'Transaksi berhasil dihapus');
     }
 }
