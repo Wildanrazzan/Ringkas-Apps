@@ -8,7 +8,7 @@ class Dompet extends Model
 {
     //
     protected $table = 'dompet';
-    protected $fillable = ['user_id', 'name', 'type', 'currency', 'initial_balance', 'is_active'];
+    protected $fillable = ['user_id', 'name', 'currency', 'initial_balance', 'is_active'];
     public $timestamps = true;
 
     public function user()

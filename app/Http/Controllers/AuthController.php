@@ -13,6 +13,7 @@ class AuthController extends Controller
         $user = User::all();
         return response()->json($user);
     }
+    
     public function register(Request $request)
     {
         $request->validate([
@@ -29,6 +30,7 @@ class AuthController extends Controller
         return response()->json([
             "status"=>"success",
             "message"=>"User registered successfully",
+            "data"=>$user,
             "access_token"=>$token,
         ]);
     }
@@ -51,8 +53,10 @@ class AuthController extends Controller
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
+            "status" => "success",
+            "message" => "User logged in successfully",
+            "data"=>$user,
             'access_token' => $token,
-            'token_type' => 'Bearer',
         ]);
     }
 }

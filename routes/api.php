@@ -13,9 +13,9 @@ use App\Http\Controllers\TransaksiController;
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
-Route::get('/users', [AuthController::class, 'index']);
 
 Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/users', [AuthController::class, 'index']);
     Route::get('/dompet', [DompetController::class, 'index']);
     Route::post('/dompet', [DompetController::class, 'store']);
     Route::put('/dompet/{id}', [DompetController::class, 'update']);

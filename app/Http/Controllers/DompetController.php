@@ -40,9 +40,8 @@ class DompetController extends Controller
         //
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
-            'type' => 'required|string|max:100',
             'currency' => 'required|string|max:10',
-            'initial_balance' => 'required|numeric',
+            'initial_balance' => 'required|decimal:0,2',
             'is_active' => 'required|boolean',
         ]);
         if ($validator->fails()) {
@@ -51,7 +50,6 @@ class DompetController extends Controller
         $dompet = Dompet::create([
             'user_id' => Auth::id(),
             'name' => $request->name,
-            'type' => $request->type,
             'currency' => $request->currency,
             'initial_balance' => $request->initial_balance,
             'is_active' => $request->is_active,
@@ -83,9 +81,8 @@ class DompetController extends Controller
         //
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|required|string|max:255',
-            'type' => 'sometimes|required|string|max:100',
             'currency' => 'sometimes|required|string|max:10',
-            'initial_balance' => 'sometimes|required|numeric',
+            'initial_balance' => 'sometimes|required|decimal:0,2',
             'is_active' => 'sometimes|required|boolean',
         ]);
         if ($validator->fails()) {
@@ -104,7 +101,6 @@ class DompetController extends Controller
 
         $dompet->update($request->only([
             'name',
-            'type',
             'currency',
             'initial_balance',
             'is_active'
