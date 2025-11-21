@@ -15,15 +15,48 @@ class TransaksiController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
         //
         $user = Auth::user();
-        $transaksi = Transaksi::join('dompet', 'transaksi.dompet_id', '=', 'dompet.id')
+        
+        $query = Transaksi::join('dompet', 'transaksi.dompet_id', '=', 'dompet.id')
             ->join('kategori', 'transaksi.category_id', '=', 'kategori.id')
             ->select('transaksi.*', 'dompet.name as dompet_name', 'kategori.name as kategori_name')
-            ->where('dompet.user_id', $user->id)
-            ->get();
+            ->where('dompet.user_id', $user->id);
+
+        // Filter berdasarkan tanggal mulai
+        if ($request->has('start_date') && $request->start_date) {
+            $query->whereDate('transaksi.trx_date', '>=', $request->start_date);
+        }
+
+        // Filter berdasarkan tanggal akhir
+        if ($request->has('end_date') && $request->end_date) {
+            $query->whereDate('transaksi.trx_date', '<=', $request->end_date);
+        }
+
+        // Filter berdasarkan search keyword (pada note/deskripsi)
+        if ($request->has('search') && $request->search) {
+            $query->where('transaksi.note', 'like', '%' . $request->search . '%');
+        }
+
+        // Filter berdasarkan wallet/dompet (support multiple values: dompet_id=1,2,3)
+        if ($request->has('dompet_id') && $request->dompet_id) {
+            $dompet_ids = explode(',', $request->dompet_id);
+            $dompet_ids = array_map('trim', $dompet_ids);
+            $query->whereIn('transaksi.dompet_id', $dompet_ids);
+        }
+
+        // Filter berdasarkan kategori (support multiple values: category_id=1,2,3)
+        if ($request->has('category_id') && $request->category_id) {
+            $category_ids = explode(',', $request->category_id);
+            $category_ids = array_map('trim', $category_ids);
+            $query->whereIn('transaksi.category_id', $category_ids);
+        }
+
+        // Urutkan berdasarkan tanggal terbaru
+        $transaksi = $query->orderBy('transaksi.trx_date', 'desc')->get();
+
         return new MessageResource($transaksi, '200', 'Data transaksi berhasil diambil');
     }
 
@@ -45,7 +78,7 @@ class TransaksiController extends Controller
             'dompet_id' => 'required|exists:dompet,id',
             'category_id' => 'required|exists:kategori,id',
             'trx_date' => 'required|date',
-            'amount' => 'required|numeric',
+            'amount' => 'required|decimal:0,2',
             'note' => 'nullable|string|max:500',
         ]);
         if ($validator->fails()) {
@@ -112,7 +145,7 @@ class TransaksiController extends Controller
             'dompet_id' => 'sometimes|exists:dompet,id',
             'category_id' => 'sometimes|exists:kategori,id',
             'trx_date' => 'sometimes|date',
-            'amount' => 'sometimes|numeric',
+            'amount' => 'sometimes|decimal:0,2',
             'note' => 'nullable|string|max:500',
         ]);
         if ($validator->fails()) {
