@@ -25,14 +25,19 @@ class TransaksiController extends Controller
             ->select('transaksi.*', 'dompet.name as dompet_name', 'kategori.name as kategori_name')
             ->where('dompet.user_id', $user->id);
 
+        $start_date = null;
+        $end_date = null;
+
         // Filter berdasarkan tanggal mulai
         if ($request->has('start_date') && $request->start_date) {
-            $query->whereDate('transaksi.trx_date', '>=', $request->start_date);
+            $start_date = $request->start_date;
+            $query->whereDate('transaksi.trx_date', '>=', $start_date);
         }
 
         // Filter berdasarkan tanggal akhir
         if ($request->has('end_date') && $request->end_date) {
-            $query->whereDate('transaksi.trx_date', '<=', $request->end_date);
+            $end_date = $request->end_date;
+            $query->whereDate('transaksi.trx_date', '<=', $end_date);
         }
 
         // Filter berdasarkan search keyword (pada note/deskripsi)
@@ -57,8 +62,76 @@ class TransaksiController extends Controller
         // Urutkan berdasarkan tanggal terbaru
         $transaksi = $query->orderBy('transaksi.trx_date', 'desc')->get();
 
-        return new MessageResource($transaksi, '200', 'Data transaksi berhasil diambil');
+        // Hitung saldo awal dan saldo akhir berdasarkan tanggal (total semua dompet)
+        $balances = $this->calculateBalances($user->id, $start_date, $end_date);
+
+        return new MessageResource([
+            'transaksi' => $transaksi,
+            'saldo_awal' => $balances['saldo_awal'],
+            'saldo_akhir' => $balances['saldo_akhir'],
+            'total_transaksi' => $balances['total_transaksi']
+        ], '200', 'Data transaksi berhasil diambil');
     }
+
+    /**
+     * Hitung saldo awal dan saldo akhir berdasarkan tanggal (total semua dompet)
+     */
+    private function calculateBalances($user_id, $start_date = null, $end_date = null)
+    {
+        // Ambil semua dompet aktif user
+        $dompets = Dompet::where('user_id', $user_id)
+            ->where('is_active', true)
+            ->get();
+
+        $saldo_awal_total = 0;
+        $saldo_akhir_total = 0;
+        $total_transaksi = 0;
+
+        foreach ($dompets as $dompet) {
+            // ===== 1. HITUNG TRANSAKSI SEBELUM START_DATE =====
+            $before_query = Transaksi::where('transaksi.dompet_id', $dompet->id);
+
+            if ($start_date) {
+                $before_query->whereDate('transaksi.trx_date', '<', $start_date);
+            }
+
+            // Amount sudah termasuk tanda (+ untuk income, - untuk expense)
+            $perubahan_before = $before_query->sum('transaksi.amount');
+
+            // ===== 2. HITUNG TRANSAKSI DALAM RANGE =====
+            $range_query = Transaksi::where('transaksi.dompet_id', $dompet->id);
+
+            if ($start_date) {
+                $range_query->whereDate('transaksi.trx_date', '>=', $start_date);
+            }
+
+            if ($end_date) {
+                $range_query->whereDate('transaksi.trx_date', '<=', $end_date);
+            }
+
+            // Amount sudah termasuk tanda (+ untuk income, - untuk expense)
+            $perubahan_range = $range_query->sum('transaksi.amount');
+
+            // ===== 3. HITUNG SALDO AWAL DAN AKHIR =====
+            // Saldo awal = initial_balance + transaksi sebelum start_date
+            $saldo_awal = $dompet->initial_balance + $perubahan_before;
+            $saldo_awal_total += $saldo_awal;
+
+            // Saldo akhir = saldo awal + transaksi dalam range
+            $saldo_akhir = $saldo_awal + $perubahan_range;
+            $saldo_akhir_total += $saldo_akhir;
+
+            // Total transaksi dalam range (langsung gunakan amount karena sudah dengan tanda)
+            $total_transaksi += $perubahan_range;
+        }
+
+        return [
+            'saldo_awal' => $saldo_awal_total,
+            'saldo_akhir' => $saldo_akhir_total,
+            'total_transaksi' => $total_transaksi
+        ];
+    }
+
 
     /**
      * Show the form for creating a new resource.
@@ -113,9 +186,6 @@ class TransaksiController extends Controller
             'note' => $request->note,
         ]);
 
-        DB::table('dompet')
-            ->where('id', $dompet->id)
-            ->increment('initial_balance', $amount);
         return new MessageResource($transaksi, '201', 'Transaksi berhasil dibuat');
     }
 
@@ -171,13 +241,7 @@ class TransaksiController extends Controller
             }
         }
 
-        DB::transaction(function () use ($request, $transaksi, $dompetLama) {
-            DB::table('dompet')
-            ->where('id', $dompetLama->id)
-            ->update([
-                'initial_balance' => DB::raw("initial_balance - ($transaksi->amount)")
-            ]);
-
+        DB::transaction(function () use ($request, $transaksi) {
         $categoryId = $request->category_id ?? $transaksi->category_id;
         $kategoriBaru = DB::table('kategori')->where('id', $categoryId)->first();
         if (!$kategoriBaru) {
@@ -196,12 +260,6 @@ class TransaksiController extends Controller
             'amount'      => $amountBaru,
             'note'        => $request->note ?? $transaksi->note,
         ]);
-
-        DB::table('dompet')
-            ->where('id', $transaksi->dompet_id)
-            ->update([
-                'initial_balance' => DB::raw("initial_balance + ($amountBaru)")
-            ]);
         });
 
         return new MessageResource($transaksi, '200', 'Transaksi berhasil diupdate');
@@ -224,12 +282,7 @@ class TransaksiController extends Controller
             return response()->json(['Tidak memiliki izin untuk menghapus transaksi ini!'],403);
         }
 
-        DB::transaction(function () use ($transaksi, $dompet) {
-            DB::table('dompet')
-            ->where('id', $dompet->id)
-            ->update([
-                'initial_balance' => DB::raw("initial_balance - ($transaksi->amount)")
-            ]);
+        DB::transaction(function () use ($transaksi) {
             $transaksi->delete();
         });
 

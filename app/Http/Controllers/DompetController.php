@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Dompet;
+use App\Models\Transaksi;
 use App\Http\Resources\MessageResource;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
 
 class DompetController extends Controller
 {
@@ -17,11 +19,23 @@ class DompetController extends Controller
     {
         //
         $user = Auth::user();
-        $dompet = Dompet::join('users', 'dompet.user_id', '=', 'users.id')
+        $dompets = Dompet::join('users', 'dompet.user_id', '=', 'users.id')
             ->select('dompet.*', 'users.name as user_name')
             ->where('dompet.user_id', $user->id)
             ->get();
-        return new MessageResource($dompet, '200', 'Data dompet berhasil diambil');
+
+        // Tambahkan current_balance ke setiap dompet dan hitung total
+        $totalCurrentBalance = 0;
+        $dompets = $dompets->map(function ($dompet) use (&$totalCurrentBalance) {
+            $dompet->current_balance = $this->getCurrentBalance($dompet->id);
+            $totalCurrentBalance += $dompet->current_balance;
+            return $dompet;
+        });
+
+        return new MessageResource([
+            'dompets' => $dompets,
+            'total_current_balance' => $totalCurrentBalance
+        ], '200', 'Data dompet berhasil diambil');
     }
 
     /**
@@ -127,5 +141,24 @@ class DompetController extends Controller
 
         $dompet->delete();
         return new MessageResource($dompet, '200', 'Dompet berhasil dihapus');
+    }
+
+    /**
+     * Helper: Hitung current balance untuk sebuah dompet
+     * current_balance = initial_balance + sum(semua transaksi)
+     */
+    private function getCurrentBalance($dompet_id)
+    {
+        $dompet = Dompet::find($dompet_id);
+        
+        if (!$dompet) {
+            return 0;
+        }
+
+        // Hitung total semua transaksi untuk dompet ini
+        $totalTransaksi = Transaksi::where('dompet_id', $dompet_id)->sum('amount');
+
+        // Current balance = initial_balance + total transaksi
+        return $dompet->initial_balance + $totalTransaksi;
     }
 }
