@@ -195,6 +195,23 @@ class TransaksiController extends Controller
     public function show(string $id)
     {
         //
+        $transaksi = Transaksi::join('dompet', 'transaksi.dompet_id', '=', 'dompet.id')
+            ->join('kategori', 'transaksi.category_id', '=', 'kategori.id')
+            ->select('transaksi.*', 'dompet.name as dompet_name', 'kategori.name as kategori_name')
+            ->where('transaksi.id', $id)
+            ->first();
+        
+        if(!$transaksi){
+            return response()->json(['Transaksi tidak ditemukan'], 404);
+        }
+
+        // Cek apakah user memiliki izin mengakses transaksi ini
+        $dompet = Dompet::find($transaksi->dompet_id);
+        if(!$dompet || $dompet->user_id !== Auth::id()){
+            return response()->json(['Tidak memiliki izin untuk mengakses transaksi ini!'], 403);
+        }
+
+        return new MessageResource($transaksi, '200', 'Data transaksi berhasil diambil');
     }
 
     /**
