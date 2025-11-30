@@ -13,7 +13,6 @@ return new class extends Migration
     {
         Schema::create('transaksi', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('user_id')->index();
             $table->unsignedBigInteger('dompet_id')->index();
             $table->unsignedBigInteger('category_id')->index();
             $table->decimal('amount', 15, 2);
@@ -21,7 +20,6 @@ return new class extends Migration
             $table->text('note')->nullable();
             $table->timestamps();
 
-            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
             $table->foreign('dompet_id')->references('id')->on('dompet')->onDelete('cascade');
             $table->foreign('category_id')->references('id')->on('kategori')->onDelete('cascade');
         });
