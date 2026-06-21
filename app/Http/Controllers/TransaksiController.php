@@ -155,22 +155,25 @@ class TransaksiController extends Controller
             'note' => 'nullable|string|max:500',
         ]);
         if ($validator->fails()) {
-            return response()->json([$validator->errors()], 422);
+            return response()->json([
+                'message' => 'Validasi gagal',
+                'errors' => $validator->errors(),
+            ], 422);
         }
 
         $dompet = Dompet::find($request->dompet_id);
 
         if(!$dompet){
-            return response()->json(['Dompet tidak ditemukan'], 404);
+            return response()->json(['message' => 'Dompet tidak ditemukan'], 404);
         }
 
-        if($dompet->user_id !== Auth::id()){
-            return response()->json(['Tidak boleh memakai dompet yang bukan milik anda!'], 403);
+        if ((int) $dompet->user_id !== (int) Auth::id()) {
+            return response()->json(['message' => 'Tidak boleh memakai dompet yang bukan milik anda!'], 403);
         }
 
         $kategori = DB::table('kategori')->where('id', $request->category_id)->first();
         if (!$kategori) {
-            return response()->json(['Kategori tidak ditemukan'], 404);
+            return response()->json(['message' => 'Kategori tidak ditemukan'], 404);
         }
 
         $amount = abs($request->amount);
@@ -202,13 +205,13 @@ class TransaksiController extends Controller
             ->first();
         
         if(!$transaksi){
-            return response()->json(['Transaksi tidak ditemukan'], 404);
+            return response()->json(['message' => 'Transaksi tidak ditemukan'], 404);
         }
 
         // Cek apakah user memiliki izin mengakses transaksi ini
         $dompet = Dompet::find($transaksi->dompet_id);
-        if(!$dompet || $dompet->user_id !== Auth::id()){
-            return response()->json(['Tidak memiliki izin untuk mengakses transaksi ini!'], 403);
+        if(!$dompet || (int) $dompet->user_id !== (int) Auth::id()){
+            return response()->json(['message' => 'Tidak memiliki izin untuk mengakses transaksi ini!'], 403);
         }
 
         return new MessageResource($transaksi, '200', 'Data transaksi berhasil diambil');
@@ -236,25 +239,28 @@ class TransaksiController extends Controller
             'note' => 'nullable|string|max:500',
         ]);
         if ($validator->fails()) {
-            return response()->json([$validator->errors()], 422);
+            return response()->json([
+                'message' => 'Validasi gagal',
+                'errors' => $validator->errors(),
+            ], 422);
         }
         
         $transaksi = Transaksi::find($id);
 
         if(!$transaksi){
-            return response()->json(['Transaksi tidak ditemukan'], 404);
+            return response()->json(['message' => 'Transaksi tidak ditemukan'], 404);
         }
 
         $dompetLama = Dompet::find($transaksi->dompet_id);
         
-        if(!$dompetLama || $dompetLama->user_id !== Auth::id()){
-            return response()->json(['Tidak memiliki izin untuk mengupdate transaksi ini!'],403);
+        if(!$dompetLama || (int) $dompetLama->user_id !== (int) Auth::id()){
+            return response()->json(['message' => 'Tidak memiliki izin untuk mengupdate transaksi ini!'],403);
         }
 
         if($request->has('dompet_id')){
             $dompetBaru = Dompet::find($request->dompet_id);
-            if(!$dompetBaru || $dompetBaru->user_id !== Auth::id()){
-                return response()->json(['Dompet tersebut bukan milik anda!'], 403);
+            if(!$dompetBaru || (int) $dompetBaru->user_id !== (int) Auth::id()){
+                return response()->json(['message' => 'Dompet tersebut bukan milik anda!'], 403);
             }
         }
 
@@ -290,13 +296,13 @@ class TransaksiController extends Controller
         $transaksi = Transaksi::find($id);
 
         if(!$transaksi){
-            return response()->json(['Transaksi tidak ditemukan'], 404);
+            return response()->json(['message' => 'Transaksi tidak ditemukan'], 404);
         }
 
         $dompet = Dompet::find($transaksi->dompet_id);
         
-        if(!$dompet || $dompet->user_id !== Auth::id()){
-            return response()->json(['Tidak memiliki izin untuk menghapus transaksi ini!'],403);
+        if(!$dompet || (int) $dompet->user_id !== (int) Auth::id()){
+            return response()->json(['message' => 'Tidak memiliki izin untuk menghapus transaksi ini!'],403);
         }
 
         DB::transaction(function () use ($transaksi) {

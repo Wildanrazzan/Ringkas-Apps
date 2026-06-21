@@ -15,12 +15,10 @@ return new class extends Migration
             // Drop existing foreign keys jika ada
             $table->dropForeign(['dompet_id']);
             $table->dropForeign(['category_id']);
-            $table->dropForeign(['user_id']);
         });
 
         Schema::table('transaksi', function (Blueprint $table) {
             // Add back dengan cascade
-            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
             $table->foreign('dompet_id')->references('id')->on('dompet')->onDelete('cascade');
             $table->foreign('category_id')->references('id')->on('kategori')->onDelete('cascade');
         });
@@ -32,7 +30,6 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('transaksi', function (Blueprint $table) {
-            $table->dropForeign(['user_id']);
             $table->dropForeign(['dompet_id']);
             $table->dropForeign(['category_id']);
         });
